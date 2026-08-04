@@ -90,8 +90,8 @@ function weekRange(dateStr) {
 async function getOrCreateUser(env, from) {
   let user = await env.DB.prepare('SELECT * FROM users WHERE tg_id=?').bind(from.id).first();
   if (!user) {
-    await env.DB.prepare('INSERT INTO users (tg_id, username, full_name) VALUES (?,?,?)')
-      .bind(from.id, from.username || '', `${from.first_name || ''} ${from.last_name || ''}`.trim())
+    await env.DB.prepare('INSERT INTO users (tg_id, username, full_name) VALUES (?,?,NULL)')
+      .bind(from.id, from.username || '')
       .run();
     user = await env.DB.prepare('SELECT * FROM users WHERE tg_id=?').bind(from.id).first();
   }
@@ -128,6 +128,36 @@ async function weekHasCommunityBonus(env, userId, dateStr) {
   return row.cnt > 0;
 }
 
+// ---------------- Onboarding chain: имя -> город -> дальше ----------------
+
+async function askNameOrContinue(env, chatId, from, user, nextAfter) {
+  if (!user.full_name) {
+    await setSession(env, from.id, 'ASK_NAME', { next: nextAfter });
+    await sendMessage(env, chatId, 'Как тебя зовут? Напиши имя и фамилию — так ты будешь отображаться в общем рейтинге.');
+    return;
+  }
+  await askCityOrContinue(env, chatId, from, user, nextAfter);
+}
+
+async function askCityOrContinue(env, chatId, from, user, nextAfter) {
+  if (!user.city) {
+    await setSession(env, from.id, 'ASK_CITY', { next: nextAfter });
+    await sendMessage(env, chatId, 'Укажи свой город (напиши текстом):');
+    return;
+  }
+  await proceedNext(env, chatId, from, nextAfter);
+}
+
+async function proceedNext(env, chatId, from, nextAfter) {
+  if (nextAfter === 'steps') {
+    await setSession(env, from.id, 'ASK_STEPS', {});
+    await sendMessage(env, chatId, '🚶 Сколько шагов сделал(а) сегодня? Напиши число.');
+  } else {
+    await clearSession(env, from.id);
+    await sendMessage(env, chatId, 'Готово! Чтобы внести активность за сегодня — отправь /steps');
+  }
+}
+
 // ---------------- Main webhook logic ----------------
 
 async function handleWebhook(request, env) {
@@ -143,13 +173,9 @@ async function handleWebhook(request, env) {
   const session = await getSession(env, from.id);
 
   if (text === '/start') {
-    if (!user.city) {
-      await setSession(env, from.id, 'ASK_CITY', {});
-      await sendMessage(
-        env,
-        chatId,
-        'Привет! 👋 Это бот челленджа «30 дней в движении».\n\nСначала укажи свой город (напиши текстом):'
-      );
+    if (!user.full_name || !user.city) {
+      await sendMessage(env, chatId, 'Привет! 👋 Это бот челленджа «30 дней в движении».');
+      await askNameOrContinue(env, chatId, from, user, null);
     } else {
       await sendMessage(env, chatId, 'С возвращением! Чтобы внести активность за сегодня — отправь /steps');
     }
@@ -157,13 +183,12 @@ async function handleWebhook(request, env) {
   }
 
   if (text === '/steps') {
-    if (!user.city) {
-      await setSession(env, from.id, 'ASK_CITY', { next: 'steps' });
-      await sendMessage(env, chatId, 'Сначала укажи свой город (напиши текстом):');
-      return new Response('OK');
+    if (!user.full_name || !user.city) {
+      await askNameOrContinue(env, chatId, from, user, 'steps');
+    } else {
+      await setSession(env, from.id, 'ASK_STEPS', {});
+      await sendMessage(env, chatId, '🚶 Сколько шагов сделал(а) сегодня? Напиши число.');
     }
-    await setSession(env, from.id, 'ASK_STEPS', {});
-    await sendMessage(env, chatId, '🚶 Сколько шагов сделал(а) сегодня? Напиши число.');
     return new Response('OK');
   }
 
@@ -174,19 +199,24 @@ async function handleWebhook(request, env) {
 
   const { state, data } = session;
 
+  if (state === 'ASK_NAME') {
+    if (!text || text.trim().length < 2) {
+      await sendMessage(env, chatId, 'Напиши, пожалуйста, имя и фамилию текстом 🙂');
+      return new Response('OK');
+    }
+    await env.DB.prepare('UPDATE users SET full_name=? WHERE tg_id=?').bind(text.trim(), from.id).run();
+    const updatedUser = await env.DB.prepare('SELECT * FROM users WHERE tg_id=?').bind(from.id).first();
+    await askCityOrContinue(env, chatId, from, updatedUser, data.next);
+    return new Response('OK');
+  }
+
   if (state === 'ASK_CITY') {
     if (!text) {
       await sendMessage(env, chatId, 'Напиши город текстом 🙂');
       return new Response('OK');
     }
     await env.DB.prepare('UPDATE users SET city=? WHERE tg_id=?').bind(text, from.id).run();
-    if (data.next === 'steps') {
-      await setSession(env, from.id, 'ASK_STEPS', {});
-      await sendMessage(env, chatId, 'Спасибо! Город сохранён.\n\n🚶 Сколько шагов сделал(а) сегодня? Напиши число.');
-    } else {
-      await clearSession(env, from.id);
-      await sendMessage(env, chatId, 'Спасибо! Город сохранён.\n\nЧтобы внести активность за сегодня — отправь /steps');
-    }
+    await proceedNext(env, chatId, from, data.next);
     return new Response('OK');
   }
 
@@ -197,18 +227,6 @@ async function handleWebhook(request, env) {
       return new Response('OK');
     }
     data.steps = steps;
-    await setSession(env, from.id, 'ASK_MINUTES', data);
-    await sendMessage(env, chatId, '🏋️ Сколько минут длилась тренировка (не считая ходьбы)? Если не было — напиши 0.');
-    return new Response('OK');
-  }
-
-  if (state === 'ASK_MINUTES') {
-    const minutes = parseInt(text.replace(/\D/g, ''), 10);
-    if (isNaN(minutes) || minutes < 0 || minutes > 1000) {
-      await sendMessage(env, chatId, 'Напиши число минут, например: 45 (или 0, если тренировки не было)');
-      return new Response('OK');
-    }
-    data.minutes = minutes;
     await setSession(env, from.id, 'ASK_TOGETHER', data);
     await sendMessage(env, chatId, '🤝 Была сегодня совместная активность с коллегой (прогулка, тренировка вместе)?', YES_NO_KEYBOARD);
     return new Response('OK');
@@ -261,22 +279,21 @@ async function saveEntry(env, user, data, fileId, from, chatId) {
 
   const points =
     data.steps +
-    data.minutes * 100 +
     (data.together === 1 ? 1000 : 0) +
     (data.community === 1 && communityBonusAllowed ? 2000 : 0);
 
   await env.DB.prepare(
-    `INSERT INTO entries (user_id, entry_date, steps, activity_minutes, together, community, photo_file_id, photo_url, points, status)
-     VALUES (?,?,?,?,?,?,?,?,?,'pending')
+    `INSERT INTO entries (user_id, entry_date, steps, together, community, photo_file_id, photo_url, points, status)
+     VALUES (?,?,?,?,?,?,?,'pending')
      ON CONFLICT(user_id, entry_date) DO UPDATE SET
-       steps=excluded.steps, activity_minutes=excluded.activity_minutes, together=excluded.together,
+       steps=excluded.steps, together=excluded.together,
        community=excluded.community, photo_file_id=excluded.photo_file_id, photo_url=excluded.photo_url,
        points=excluded.points, status='pending', updated_at=datetime('now')`
   )
-    .bind(user.id, date, data.steps, data.minutes, data.together, data.community, fileId, photoUrl, points)
+    .bind(user.id, date, data.steps, data.together, data.community, fileId, photoUrl, points)
     .run();
 
-  let breakdown = `✅ Записано за ${date}:\n\n🚶 Шаги: ${data.steps} = ${data.steps} баллов\n🏋️ Тренировка: ${data.minutes} мин = ${data.minutes * 100} баллов`;
+  let breakdown = `✅ Записано за ${date}:\n\n🚶 Шаги: ${data.steps} = ${data.steps} баллов`;
   if (data.together === 1) breakdown += `\n🤝 Совместная активность: +1000 баллов`;
   if (data.community === 1) {
     breakdown += communityBonusAllowed
@@ -296,10 +313,9 @@ async function saveEntry(env, user, data, fileId, from, chatId) {
           date,
           tg_id: from.id,
           username: from.username || '',
-          full_name: `${from.first_name || ''} ${from.last_name || ''}`.trim(),
+          full_name: user.full_name || '',
           city: user.city,
           steps: data.steps,
-          minutes: data.minutes,
           together: data.together,
           community: data.community,
           community_bonus_allowed: communityBonusAllowed,
@@ -318,7 +334,7 @@ async function saveEntry(env, user, data, fileId, from, chatId) {
 async function handleStats(env) {
   const totals = await env.DB.prepare(
     `SELECT COALESCE(SUM(points),0) as total_points, COALESCE(SUM(steps),0) as total_steps,
-     COALESCE(SUM(activity_minutes),0) as total_minutes, COUNT(DISTINCT user_id) as participants
+     COUNT(DISTINCT user_id) as participants
      FROM entries WHERE status != 'rejected'`
   ).first();
 
@@ -334,14 +350,21 @@ async function handleStats(env) {
      GROUP BY e.user_id ORDER BY points DESC LIMIT 10`
   ).all();
 
+  const topSteps = await env.DB.prepare(
+    `SELECT u.full_name, u.username, u.city, SUM(e.steps) as steps
+     FROM entries e JOIN users u ON u.id=e.user_id
+     WHERE e.status != 'rejected'
+     GROUP BY e.user_id ORDER BY steps DESC LIMIT 10`
+  ).all();
+
   const body = {
     total_points: totals.total_points,
     total_steps: totals.total_steps,
-    total_hours: Math.round((totals.total_minutes / 60) * 10) / 10,
     participants: totals.participants,
     cities_count: cities.results.length,
     cities: cities.results.map((c) => c.city),
     leaderboard: top.results,
+    leaderboard_steps: topSteps.results,
     updated_at: new Date().toISOString(),
   };
 
