@@ -5,4 +5,4 @@ compatibility_date = "2024-11-01"
 [[d1_databases]]
 binding = "DB"
 database_name = "move-challenge-db"
-database_id = "ВСТАВЬ_СЮДА_ID_БАЗЫ"
+database_id = "819e4a6d-e2c6-496f-85f8-052ff1273d03"
