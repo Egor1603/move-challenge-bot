@@ -4,85 +4,95 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>30 дней в движении — Точка Банк</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Caveat:wght@600;700&display=swap" rel="stylesheet">
 <style>
   :root{
-    --bg: #10201a;
-    --bg-alt: #16281f;
-    --paper: #f4f2ea;
-    --line: rgba(244,242,234,0.14);
-    --gold: #f2b807;
-    --coral: #ff6b4a;
-    --mint: #7fd6b0;
-    --text: #f4f2ea;
-    --text-dim: rgba(244,242,234,0.62);
-    --mono: 'JetBrains Mono', 'SF Mono', ui-monospace, Menlo, monospace;
-    --display: 'Barlow Condensed', 'Arial Narrow', sans-serif;
-    --body: 'Inter', -apple-system, 'Segoe UI', sans-serif;
+    --violet: #6C4FF2;
+    --violet-deep: #4B2FCB;
+    --violet-pale: #EFEAFE;
+    --pink: #FF6FA5;
+    --sky: #4FC3F7;
+    --ink: #241B45;
+    --paper: #FBF9FF;
+    --card: #FFFFFF;
+    --line: #E7E1FB;
+    --text-dim: #7A72A3;
+    --script: 'Caveat', cursive;
+    --body: 'Manrope', -apple-system, 'Segoe UI', sans-serif;
   }
   * { margin:0; padding:0; box-sizing:border-box; }
   body{
-    background: radial-gradient(circle at 15% 0%, var(--bg-alt), var(--bg) 60%);
-    color: var(--text);
+    background: var(--paper);
+    color: var(--ink);
     font-family: var(--body);
     min-height:100vh;
     padding: 32px 20px 80px;
   }
   .wrap{ max-width: 980px; margin: 0 auto; }
 
-  /* ---- header ---- */
   .eyebrow{
-    font-family: var(--mono);
-    font-size: 12px;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    color: var(--mint);
-    margin-bottom: 10px;
+    display:inline-flex; align-items:center; gap:8px;
+    font-size: 13px; font-weight: 700;
+    letter-spacing: 0.02em;
+    color: var(--violet-deep);
+    background: var(--violet-pale);
+    border-radius: 999px;
+    padding: 6px 14px;
+    margin-bottom: 18px;
   }
   h1{
-    font-family: var(--display);
-    font-weight: 700;
-    font-size: clamp(42px, 8vw, 76px);
-    line-height: 0.95;
+    font-weight: 800;
+    font-size: clamp(38px, 7vw, 64px);
+    line-height: 1.02;
     letter-spacing: -0.01em;
-    text-transform: uppercase;
     margin-bottom: 6px;
+    color: var(--ink);
   }
-  .subtitle{ color: var(--text-dim); font-size: 15px; max-width: 520px; margin-bottom: 40px; }
+  h1 .script{
+    display:block;
+    font-family: var(--script);
+    font-weight: 700;
+    color: var(--violet);
+    font-size: 1.15em;
+    line-height: 0.9;
+    margin-top: 2px;
+  }
+  .subtitle{ color: var(--text-dim); font-size: 15px; max-width: 540px; margin-bottom: 36px; }
 
-  /* ---- route progress ---- */
   .route-card{
-    background: var(--bg-alt);
-    border: 1px solid var(--line);
-    border-radius: 18px;
-    padding: 28px 26px 22px;
-    margin-bottom: 28px;
+    background: linear-gradient(135deg, var(--violet) 0%, var(--violet-deep) 100%);
+    border-radius: 22px;
+    padding: 28px 26px 24px;
+    margin-bottom: 24px;
     position: relative;
     overflow: hidden;
+    color: #fff;
   }
-  .route-card::before{
-    content:"";
-    position:absolute; inset:0;
-    background-image: radial-gradient(circle, var(--line) 1px, transparent 1px);
-    background-size: 22px 22px;
-    opacity: 0.35;
-    pointer-events:none;
+  .route-card::after{
+    content:"🦆";
+    position:absolute; right:24px; top:18px;
+    font-size: 46px;
+    opacity:0.9;
+    transform: scaleX(-1);
   }
   .route-head{
     display:flex; justify-content:space-between; align-items:baseline;
     margin-bottom: 18px; position:relative;
   }
-  .route-label{ font-family: var(--mono); font-size: 12px; text-transform:uppercase; letter-spacing:0.1em; color: var(--text-dim); }
-  .route-pct{ font-family: var(--display); font-size: 34px; color: var(--gold); }
+  .route-label{ font-size: 12px; text-transform:uppercase; letter-spacing:0.1em; color: rgba(255,255,255,0.75); font-weight:700; }
+  .route-pct{ font-family: var(--script); font-size: 42px; line-height:1; }
   .track{
     position:relative;
     height: 14px;
-    background: rgba(244,242,234,0.08);
+    background: rgba(255,255,255,0.22);
     border-radius: 999px;
     overflow: visible;
   }
   .track-fill{
     position:absolute; top:0; left:0; height:100%;
-    background: linear-gradient(90deg, var(--mint), var(--gold));
+    background: linear-gradient(90deg, #FFD166, var(--pink));
     border-radius: 999px;
     transition: width 1s ease;
   }
@@ -90,54 +100,55 @@
     position:absolute; top:50%; transform: translate(-50%,-50%);
     font-size: 20px;
   }
-  .route-foot{ display:flex; justify-content:space-between; margin-top: 10px; font-family: var(--mono); font-size:12px; color: var(--text-dim); }
+  .route-foot{ display:flex; justify-content:space-between; margin-top: 10px; font-size:13px; color: rgba(255,255,255,0.85); font-weight:600; }
 
-  /* ---- KPI grid ---- */
   .grid{
     display:grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(3, 1fr);
     gap: 14px;
-    margin-bottom: 28px;
+    margin-bottom: 24px;
   }
   @media (max-width: 720px){ .grid{ grid-template-columns: repeat(2, 1fr); } }
   .tile{
-    background: var(--bg-alt);
+    background: var(--card);
     border: 1px solid var(--line);
-    border-radius: 14px;
+    border-radius: 16px;
     padding: 18px 18px 16px;
   }
-  .tile-label{ font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-dim); margin-bottom: 8px; }
-  .tile-value{ font-family: var(--display); font-size: 34px; line-height:1; color: var(--text); }
-  .tile-value span{ color: var(--gold); }
+  .tile-label{ font-size: 12px; font-weight:700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-dim); margin-bottom: 8px; }
+  .tile-value{ font-weight:800; font-size: 32px; line-height:1; color: var(--ink); }
 
-  /* ---- leaderboard ---- */
+  .boards{ display:grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 780px){ .boards{ grid-template-columns: 1fr; } }
   .board{
-    background: var(--bg-alt);
+    background: var(--card);
     border: 1px solid var(--line);
     border-radius: 18px;
-    padding: 22px 26px 8px;
+    padding: 22px 22px 8px;
   }
-  .board-title{ font-family: var(--display); font-size: 26px; text-transform: uppercase; letter-spacing: 0.01em; margin-bottom: 14px; }
+  .board-title{ font-weight: 800; font-size: 20px; margin-bottom: 4px; color: var(--ink); }
+  .board-sub{ font-size: 12px; color: var(--text-dim); margin-bottom: 14px; }
   table{ width:100%; border-collapse: collapse; }
   th{
-    text-align:left; font-family: var(--mono); font-size: 11px; text-transform:uppercase;
-    color: var(--text-dim); letter-spacing: 0.06em; padding-bottom: 10px; border-bottom: 1px solid var(--line);
+    text-align:left; font-size: 11px; font-weight:700; text-transform:uppercase;
+    color: var(--text-dim); letter-spacing: 0.04em; padding-bottom: 8px; border-bottom: 1px solid var(--line);
   }
-  td{ padding: 12px 6px; border-bottom: 1px solid var(--line); font-size: 14px; }
-  td:first-child, th:first-child{ font-family: var(--mono); color: var(--gold); width: 34px; }
-  .name{ font-weight: 600; }
+  td{ padding: 11px 4px; border-bottom: 1px solid var(--line); font-size: 14px; }
+  td:first-child, th:first-child{ color: var(--violet); font-weight: 800; width: 26px; }
+  .name{ font-weight: 700; }
   .city-tag{ color: var(--text-dim); font-size: 12px; }
-  .points{ font-family: var(--mono); text-align:right; color: var(--mint); }
+  .value-cell{ text-align:right; font-weight: 700; color: var(--violet-deep); }
   tr:last-child td{ border-bottom:none; }
+  tr:first-child td{ background: var(--violet-pale); border-radius: 10px; }
 
-  .updated{ text-align:center; font-family: var(--mono); font-size: 11px; color: var(--text-dim); margin-top: 22px; }
+  .updated{ text-align:center; font-size: 12px; color: var(--text-dim); margin-top: 22px; }
 </style>
 </head>
 <body>
 <div class="wrap">
 
-  <div class="eyebrow">Точка Банк · Спортивный движ</div>
-  <h1>30 дней<br>в движении</h1>
+  <div class="eyebrow">🚀 Точка Банк · Спортивный движ</div>
+  <h1>30 дней<br><span class="script">в движении</span></h1>
   <p class="subtitle">Совместный маршрут команды: каждый шаг, каждая тренировка и каждая совместная пробежка приближают нас к общей цели.</p>
 
   <div class="route-card">
@@ -161,10 +172,6 @@
       <div class="tile-value" id="totalSteps">—</div>
     </div>
     <div class="tile">
-      <div class="tile-label">Часы тренировок</div>
-      <div class="tile-value" id="totalHours">—</div>
-    </div>
-    <div class="tile">
       <div class="tile-label">Города</div>
       <div class="tile-value" id="totalCities">—</div>
     </div>
@@ -174,14 +181,23 @@
     </div>
   </div>
 
-  <div class="board">
-    <div class="board-title">Топ команды</div>
-    <table>
-      <thead>
-        <tr><th>#</th><th>Участник</th><th style="text-align:right">Баллы</th></tr>
-      </thead>
-      <tbody id="leaderboard"></tbody>
-    </table>
+  <div class="boards">
+    <div class="board">
+      <div class="board-title">🏆 Топ по баллам</div>
+      <div class="board-sub">Учитывает шаги, тренировки и бонусы</div>
+      <table>
+        <thead><tr><th>#</th><th>Участник</th><th style="text-align:right">Баллы</th></tr></thead>
+        <tbody id="leaderboardPoints"></tbody>
+      </table>
+    </div>
+    <div class="board">
+      <div class="board-title">🚶 Топ по шагам</div>
+      <div class="board-sub">Чистое количество пройденных шагов</div>
+      <table>
+        <thead><tr><th>#</th><th>Участник</th><th style="text-align:right">Шаги</th></tr></thead>
+        <tbody id="leaderboardSteps"></tbody>
+      </table>
+    </div>
   </div>
 
   <div class="updated" id="updated"></div>
@@ -190,8 +206,8 @@
 
 <script>
   // ==== Настройки ====
-  const STATS_URL = "https://move-challenge-bot.egorv28.workers.dev/stats"; // замени на свой Worker URL
-  const GOAL_POINTS = 100000000000000000000000; // общая цель по баллам — подставь свою
+  const STATS_URL = "https://move-challenge-bot.твой-поддомен.workers.dev/stats"; // замени на свой Worker URL
+  const GOAL_POINTS = 10000000; // общая цель по баллам — подставь свою
 
   async function loadStats() {
     let data;
@@ -199,10 +215,10 @@
       const res = await fetch(STATS_URL);
       data = await res.json();
     } catch (e) {
-      // демо-данные, если Worker ещё не подключен
       data = {
-        total_points: 0, total_steps: 0, total_hours: 0,
-        participants: 0, cities_count: 0, leaderboard: [], updated_at: null
+        total_points: 0, total_steps: 0,
+        participants: 0, cities_count: 0,
+        leaderboard: [], leaderboard_steps: [], updated_at: null
       };
     }
     render(data);
@@ -217,29 +233,33 @@
     document.getElementById('pointsGoal').textContent = 'Цель: ' + GOAL_POINTS.toLocaleString('ru-RU') + ' баллов';
 
     document.getElementById('totalSteps').innerHTML = data.total_steps.toLocaleString('ru-RU');
-    document.getElementById('totalHours').innerHTML = data.total_hours.toLocaleString('ru-RU');
     document.getElementById('totalCities').innerHTML = data.cities_count;
     document.getElementById('totalParticipants').innerHTML = data.participants;
 
-    const tbody = document.getElementById('leaderboard');
-    tbody.innerHTML = '';
-    (data.leaderboard || []).forEach((row, i) => {
-      const tr = document.createElement('tr');
-      tr.innerHTML = \`
-        <td>\${i + 1}</td>
-        <td><div class="name">\${row.full_name || row.username || 'Участник'}</div><div class="city-tag">\${row.city || ''}</div></td>
-        <td class="points">\${row.points.toLocaleString('ru-RU')}</td>
-      \`;
-      tbody.appendChild(tr);
-    });
+    fillTable('leaderboardPoints', data.leaderboard, 'points');
+    fillTable('leaderboardSteps', data.leaderboard_steps, 'steps');
 
     document.getElementById('updated').textContent = data.updated_at
       ? 'Обновлено: ' + new Date(data.updated_at).toLocaleString('ru-RU')
       : 'Ожидание подключения бота…';
   }
 
+  function fillTable(elId, rows, field) {
+    const tbody = document.getElementById(elId);
+    tbody.innerHTML = '';
+    (rows || []).forEach((row, i) => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = \`
+        <td>\${i + 1}</td>
+        <td><div class="name">\${row.full_name || row.username || 'Участник'}</div><div class="city-tag">\${row.city || ''}</div></td>
+        <td class="value-cell">\${(row[field] || 0).toLocaleString('ru-RU')}</td>
+      \`;
+      tbody.appendChild(tr);
+    });
+  }
+
   loadStats();
-  setInterval(loadStats, 60000); // обновление раз в минуту
+  setInterval(loadStats, 60000);
 </script>
 </body>
 </html>
