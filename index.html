@@ -249,11 +249,11 @@
     tbody.innerHTML = '';
     (rows || []).forEach((row, i) => {
       const tr = document.createElement('tr');
-      tr.innerHTML = \`
-        <td>\${i + 1}</td>
-        <td><div class="name">\${row.full_name || row.username || 'Участник'}</div><div class="city-tag">\${row.city || ''}</div></td>
-        <td class="value-cell">\${(row[field] || 0).toLocaleString('ru-RU')}</td>
-      \`;
+      tr.innerHTML = `
+        <td>${i + 1}</td>
+        <td><div class="name">${row.full_name || row.username || 'Участник'}</div><div class="city-tag">${row.city || ''}</div></td>
+        <td class="value-cell">${(row[field] || 0).toLocaleString('ru-RU')}</td>
+      `;
       tbody.appendChild(tr);
     });
   }
