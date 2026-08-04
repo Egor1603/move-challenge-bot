@@ -65,7 +65,7 @@ async function setupWebhook(request, env) {
   return new Response(JSON.stringify(res, null, 2), { headers: { 'Content-Type': 'application/json' } });
 }
 
-// ---------------- Date helpers ----------------
+// ---------------- Date helpers ---------------
 
 function todayDateStr() {
   // Екатеринбург = UTC+5
