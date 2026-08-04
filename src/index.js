@@ -369,6 +369,6 @@ async function handleStats(env) {
   };
 
   return new Response(JSON.stringify(body), {
-    headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+    headers: { 'Content-Type': 'application/json; charset=utf-8', 'Access-Control-Allow-Origin': '*' },
   });
 }
