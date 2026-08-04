@@ -149,7 +149,7 @@
 
   <div class="eyebrow">🚀 Точка Банк · Спортивный движ</div>
   <h1>30 дней<br><span class="script">в движении</span></h1>
-  <p class="subtitle">Совместный маршрут команды: каждый шаг, каждая тренировка и каждая совместная пробежка приближают нас к общей цели.</p>
+  <p class="subtitle">Совместный маршрут команды: каждый километр, каждая пробежка с коллегой и каждая встреча комьюнити приближают нас к общей цели.</p>
 
   <div class="route-card">
     <div class="route-head">
@@ -168,8 +168,8 @@
 
   <div class="grid">
     <div class="tile">
-      <div class="tile-label">Шаги</div>
-      <div class="tile-value" id="totalSteps">—</div>
+      <div class="tile-label">Километры</div>
+      <div class="tile-value" id="totalKm">—</div>
     </div>
     <div class="tile">
       <div class="tile-label">Города</div>
@@ -184,18 +184,18 @@
   <div class="boards">
     <div class="board">
       <div class="board-title">🏆 Топ по баллам</div>
-      <div class="board-sub">Учитывает шаги, тренировки и бонусы</div>
+      <div class="board-sub">Учитывает километры, пробежки с коллегами и бонусы комьюнити</div>
       <table>
         <thead><tr><th>#</th><th>Участник</th><th style="text-align:right">Баллы</th></tr></thead>
         <tbody id="leaderboardPoints"></tbody>
       </table>
     </div>
     <div class="board">
-      <div class="board-title">🚶 Топ по шагам</div>
-      <div class="board-sub">Чистое количество пройденных шагов</div>
+      <div class="board-title">🏃 Топ по километрам</div>
+      <div class="board-sub">Чистая пробежанная дистанция</div>
       <table>
-        <thead><tr><th>#</th><th>Участник</th><th style="text-align:right">Шаги</th></tr></thead>
-        <tbody id="leaderboardSteps"></tbody>
+        <thead><tr><th>#</th><th>Участник</th><th style="text-align:right">Км</th></tr></thead>
+        <tbody id="leaderboardKm"></tbody>
       </table>
     </div>
   </div>
@@ -216,9 +216,9 @@
       data = await res.json();
     } catch (e) {
       data = {
-        total_points: 0, total_steps: 0,
+        total_points: 0, total_km: 0,
         participants: 0, cities_count: 0,
-        leaderboard: [], leaderboard_steps: [], updated_at: null
+        leaderboard: [], leaderboard_km: [], updated_at: null
       };
     }
     render(data);
@@ -232,12 +232,12 @@
     document.getElementById('pointsNow').textContent = data.total_points.toLocaleString('ru-RU') + ' баллов';
     document.getElementById('pointsGoal').textContent = 'Цель: ' + GOAL_POINTS.toLocaleString('ru-RU') + ' баллов';
 
-    document.getElementById('totalSteps').innerHTML = data.total_steps.toLocaleString('ru-RU');
+    document.getElementById('totalKm').innerHTML = data.total_km.toLocaleString('ru-RU');
     document.getElementById('totalCities').innerHTML = data.cities_count;
     document.getElementById('totalParticipants').innerHTML = data.participants;
 
     fillTable('leaderboardPoints', data.leaderboard, 'points');
-    fillTable('leaderboardSteps', data.leaderboard_steps, 'steps');
+    fillTable('leaderboardKm', data.leaderboard_km, 'km');
 
     document.getElementById('updated').textContent = data.updated_at
       ? 'Обновлено: ' + new Date(data.updated_at).toLocaleString('ru-RU')
