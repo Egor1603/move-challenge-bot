@@ -10,7 +10,7 @@ function doPost(e) {
   if (sheet.getLastRow() === 0) {
     sheet.appendRow([
       'Дата', 'Telegram ID', 'Username', 'Имя', 'Город',
-      'Шаги', 'Минуты тренировки', 'Вместе с коллегой', 'Комьюнити',
+      'Километры', 'Вместе с коллегой', 'Комьюнити',
       'Бонус комьюнити начислен', 'Баллы', 'Скриншот', 'Статус'
     ]);
   }
@@ -23,8 +23,7 @@ function doPost(e) {
     data.username,
     data.full_name,
     data.city,
-    data.steps,
-    data.minutes,
+    data.km,
     data.together ? 'Да' : 'Нет',
     data.community ? 'Да' : 'Нет',
     data.community_bonus_allowed ? 'Да' : 'Нет',
