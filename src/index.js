@@ -237,7 +237,7 @@ async function handleWebhook(request, env) {
     }
     data.km = Math.round(km * 100) / 100;
     await setSession(env, from.id, 'ASK_TOGETHER', data);
-    await sendMessage(env, chatId, '🤝 Был сегодня совместный бег с коллегой?', YES_NO_KEYBOARD);
+    await sendMessage(env, chatId, '🤝 Был сегодня совместный бег с коллегой? (для статистики)', YES_NO_KEYBOARD);
     return new Response('OK');
   }
 
@@ -288,7 +288,6 @@ async function saveEntry(env, user, data, fileId, from, chatId) {
 
   const points =
     Math.round(data.km * 100) +
-    (data.together === 1 ? 1000 : 0) +
     (data.community === 1 && communityBonusAllowed ? 2000 : 0);
 
   await env.DB.prepare(
@@ -303,7 +302,7 @@ async function saveEntry(env, user, data, fileId, from, chatId) {
     .run();
 
   let breakdown = `✅ Записано за ${date}:\n\n🏃 Дистанция: ${data.km} км = ${Math.round(data.km * 100)} баллов`;
-  if (data.together === 1) breakdown += `\n🤝 Совместный бег: +1000 баллов`;
+  if (data.together === 1) breakdown += `\n🤝 Совместный бег с коллегой отмечен`;
   if (data.community === 1) {
     breakdown += communityBonusAllowed
       ? `\n🏃 Тренировка комьюнити: +2000 баллов`
