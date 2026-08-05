@@ -2,6 +2,9 @@ name = "move-challenge-bot"
 main = "src/index.js"
 compatibility_date = "2024-11-01"
 
+[vars]
+SHEETS_WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbyO6RuO5enZJjM-wd7E8xmTTKuA3CrgNMWbUbdjtwWkuL2I8ErFLqbq2HRZjQVFKdna/exec"
+
 [[d1_databases]]
 binding = "DB"
 database_name = "move-challenge-db"
