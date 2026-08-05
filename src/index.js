@@ -7,6 +7,10 @@ const YES_NO_KEYBOARD = {
   resize_keyboard: true,
   one_time_keyboard: true,
 };
+const MAIN_MENU_KEYBOARD = {
+  keyboard: [[{ text: '🏃 Новая пробежка' }, { text: '📊 Мой рейтинг' }]],
+  resize_keyboard: true,
+};
 const REMOVE_KEYBOARD = { remove_keyboard: true };
 
 export default {
@@ -154,7 +158,7 @@ async function proceedNext(env, chatId, from, nextAfter) {
     await sendMessage(env, chatId, '🏃 Сколько километров пробежал(а) сегодня? Напиши число (можно с дробной частью, например 5.4).');
   } else {
     await clearSession(env, from.id);
-    await sendMessage(env, chatId, 'Готово! Чтобы внести пробежку за сегодня — отправь /run');
+    await sendMessage(env, chatId, 'Готово! Выбери действие 👇', MAIN_MENU_KEYBOARD);
   }
 }
 
@@ -177,12 +181,12 @@ async function handleWebhook(request, env) {
       await sendMessage(env, chatId, 'Привет! 👋 Это бот челленджа «30 дней в движении».');
       await askNameOrContinue(env, chatId, from, user, null);
     } else {
-      await sendMessage(env, chatId, 'С возвращением! Чтобы внести пробежку за сегодня — отправь /run');
+      await sendMessage(env, chatId, 'С возвращением! Выбери действие 👇', MAIN_MENU_KEYBOARD);
     }
     return new Response('OK');
   }
 
-  if (text === '/run' || text === '/steps') {
+  if (text === '/run' || text === '/steps' || text === '🏃 Новая пробежка') {
     if (!user.full_name || !user.city) {
       await askNameOrContinue(env, chatId, from, user, 'run');
     } else {
@@ -192,8 +196,13 @@ async function handleWebhook(request, env) {
     return new Response('OK');
   }
 
+  if (text === '📊 Мой рейтинг') {
+    await sendMyRank(env, chatId, user);
+    return new Response('OK');
+  }
+
   if (!session) {
-    await sendMessage(env, chatId, 'Чтобы внести пробежку за сегодня, отправь /run');
+    await sendMessage(env, chatId, 'Чтобы внести пробежку за сегодня, отправь /run', MAIN_MENU_KEYBOARD);
     return new Response('OK');
   }
 
@@ -303,6 +312,7 @@ async function saveEntry(env, user, data, fileId, from, chatId) {
   breakdown += `\n\n💰 Итого: ${points} баллов\n\nЗаявка отправлена на проверку модератору.`;
 
   await sendMessage(env, chatId, breakdown);
+  await sendLeaderboards(env, chatId);
 
   if (env.SHEETS_WEBHOOK_URL) {
     try {
@@ -327,6 +337,81 @@ async function saveEntry(env, user, data, fileId, from, chatId) {
       // не блокируем бота, если Google недоступен
     }
   }
+}
+
+async function sendLeaderboards(env, chatId) {
+  const topPoints = await env.DB.prepare(
+    `SELECT u.full_name, u.username, SUM(e.points) as points
+     FROM entries e JOIN users u ON u.id=e.user_id
+     WHERE e.status != 'rejected'
+     GROUP BY e.user_id ORDER BY points DESC LIMIT 10`
+  ).all();
+
+  const topKm = await env.DB.prepare(
+    `SELECT u.full_name, u.username, SUM(e.steps) as km
+     FROM entries e JOIN users u ON u.id=e.user_id
+     WHERE e.status != 'rejected'
+     GROUP BY e.user_id ORDER BY km DESC LIMIT 10`
+  ).all();
+
+  const nameOf = (row) => row.full_name || row.username || 'Участник';
+
+  let text = '🏆 <b>Топ-10 по баллам</b>\n';
+  if (topPoints.results.length === 0) {
+    text += 'Пока пусто\n';
+  } else {
+    topPoints.results.forEach((row, i) => {
+      text += `${i + 1}. ${nameOf(row)} — ${row.points.toLocaleString('ru-RU')} баллов\n`;
+    });
+  }
+
+  text += '\n🏃 <b>Топ-10 по километрам</b>\n';
+  if (topKm.results.length === 0) {
+    text += 'Пока пусто\n';
+  } else {
+    topKm.results.forEach((row, i) => {
+      text += `${i + 1}. ${nameOf(row)} — ${row.km} км\n`;
+    });
+  }
+
+  await sendMessage(env, chatId, text, MAIN_MENU_KEYBOARD);
+}
+
+async function sendMyRank(env, chatId, user) {
+  const pointsRows = (
+    await env.DB.prepare(
+      `SELECT user_id, SUM(points) as points FROM entries WHERE status != 'rejected' GROUP BY user_id ORDER BY points DESC`
+    ).all()
+  ).results;
+  const kmRows = (
+    await env.DB.prepare(
+      `SELECT user_id, SUM(steps) as km FROM entries WHERE status != 'rejected' GROUP BY user_id ORDER BY km DESC`
+    ).all()
+  ).results;
+
+  const total = pointsRows.length;
+  const pointsIdx = pointsRows.findIndex((r) => r.user_id === user.id);
+  const kmIdx = kmRows.findIndex((r) => r.user_id === user.id);
+
+  if (pointsIdx === -1) {
+    await sendMessage(
+      env,
+      chatId,
+      'У тебя пока нет ни одной засчитанной пробежки. Нажми «🏃 Новая пробежка», чтобы начать!',
+      MAIN_MENU_KEYBOARD
+    );
+    return;
+  }
+
+  const myPoints = pointsRows[pointsIdx].points;
+  const myKm = kmRows[kmIdx].km;
+
+  const text =
+    `📊 <b>Твой результат</b>\n\n` +
+    `💰 Баллы: ${myPoints.toLocaleString('ru-RU')} (место ${pointsIdx + 1} из ${total})\n` +
+    `🏃 Километры: ${myKm} (место ${kmIdx + 1} из ${total})`;
+
+  await sendMessage(env, chatId, text, MAIN_MENU_KEYBOARD);
 }
 
 // ---------------- Stats for dashboard ----------------
