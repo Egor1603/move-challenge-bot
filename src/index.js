@@ -235,6 +235,18 @@ async function handleWebhook(request, env) {
       await sendMessage(env, chatId, 'Не похоже на дистанцию 🤔 Напиши, например: 5.4');
       return new Response('OK');
     }
+    if (km === 0) {
+      const jokes = [
+        'Похоже, сегодня 0 км — и это тоже нормально 🙂 Если пробежки не было, просто загляни завтра. А если была — напиши реальную дистанцию!',
+        'Ноль не считается 😊 Если сегодня был отдых — это тоже важная часть тренировок. Вернись, когда пробежишь!',
+        'Кажется, пробежки сегодня не было — и это ок, бывают дни отдыха 💜 Заглядывай, когда будет что записать.',
+        'На 0 км баллы не начисляются, но это не страшно — не все дни бывают беговыми. Увидимся на следующей пробежке! 🏃',
+        'Хм, 0 км мы не считаем — возможно, забыл(а) вписать реальное число? Если пробежки правда не было, ничего страшного, попробуй завтра 🙂',
+      ];
+      const joke = jokes[Math.floor(Math.random() * jokes.length)];
+      await sendMessage(env, chatId, joke);
+      return new Response('OK');
+    }
     data.km = Math.round(km * 100) / 100;
     await setSession(env, from.id, 'ASK_TOGETHER', data);
     await sendMessage(env, chatId, '🤝 Был сегодня совместный бег с коллегой? (для статистики)', YES_NO_KEYBOARD);
@@ -315,7 +327,7 @@ async function saveEntry(env, user, data, fileId, from, chatId) {
 
   if (env.SHEETS_WEBHOOK_URL) {
     try {
-      await fetch(env.SHEETS_WEBHOOK_URL, {
+      const sheetsRes = await fetch(env.SHEETS_WEBHOOK_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -332,8 +344,11 @@ async function saveEntry(env, user, data, fileId, from, chatId) {
           photo_url: photoUrl,
         }),
       });
+      if (!sheetsRes.ok) {
+        console.error('Sheets sync HTTP error:', sheetsRes.status, await sheetsRes.text());
+      }
     } catch (e) {
-      // не блокируем бота, если Google недоступен
+      console.error('Sheets sync failed:', e.message);
     }
   }
 }
@@ -441,6 +456,13 @@ async function handleStats(env) {
      GROUP BY e.user_id ORDER BY km DESC LIMIT 10`
   ).all();
 
+  const allParticipants = await env.DB.prepare(
+    `SELECT u.full_name, u.username, u.city, SUM(e.points) as points, SUM(e.steps) as km, COUNT(*) as days
+     FROM entries e JOIN users u ON u.id=e.user_id
+     WHERE e.status != 'rejected'
+     GROUP BY e.user_id ORDER BY points DESC`
+  ).all();
+
   const body = {
     total_points: totals.total_points,
     total_km: Math.round(totals.total_km * 10) / 10,
@@ -449,6 +471,7 @@ async function handleStats(env) {
     cities: cities.results.map((c) => c.city),
     leaderboard: top.results,
     leaderboard_km: topKm.results,
+    leaderboard_all: allParticipants.results,
     updated_at: new Date().toISOString(),
   };
 
