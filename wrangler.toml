@@ -9,3 +9,6 @@ SHEETS_WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbyO6RuO5enZJjM-wd7
 binding = "DB"
 database_name = "move-challenge-db"
 database_id = "819e4a6d-e2c6-496f-85f8-052ff1273d03"
+
+[triggers]
+crons = ["0 7 * * *"]
