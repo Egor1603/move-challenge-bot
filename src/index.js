@@ -35,7 +35,17 @@ export default {
       return setupWebhook(request, env);
     }
 
+    if (request.method === 'GET' && url.pathname === '/send-reminders') {
+      // Ручной запуск напоминаний (для теста без ожидания cron)
+      const count = await sendReminders(env);
+      return new Response(`Напоминания отправлены: ${count}`);
+    }
+
     return new Response('Move Challenge Bot is running');
+  },
+
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil(sendReminders(env));
   },
 };
 
@@ -426,6 +436,62 @@ async function sendMyRank(env, chatId, user) {
     `🏃 Километры: ${myKm} (место ${kmIdx + 1} из ${total})`;
 
   await sendMessage(env, chatId, text, MAIN_MENU_KEYBOARD);
+}
+
+// ---------------- Напоминания неактивным участникам ----------------
+
+async function sendReminders(env) {
+  const rows = (
+    await env.DB.prepare(
+      `SELECT u.tg_id, u.full_name, MAX(e.entry_date) as last_date, u.created_at
+       FROM users u
+       LEFT JOIN entries e ON e.user_id = u.id AND e.status != 'rejected'
+       WHERE u.full_name IS NOT NULL AND u.city IS NOT NULL
+       GROUP BY u.id
+       HAVING
+         (last_date IS NULL AND u.created_at < datetime('now', '-5 days'))
+         OR (last_date IS NOT NULL AND last_date < date('now', '-5 days'))`
+    ).all()
+  ).results;
+
+  const messagesReturning = [
+    'Привет! 👋 Твои последние километры мы помним, а вот новых давно не было. Как насчёт сегодня?',
+    'Эй, куда пропал(а)? 🏃 5 дней без пробежки — темп сбивается. Возвращайся в игру!',
+    'Соскучились по твоим результатам 🙂 Загляни и отметь новую пробежку, когда будет удобно.',
+    'Твой прогресс на паузе уже 5 дней ⏸️ Самое время нажать «play» и снова выйти на дистанцию.',
+    'Помним, как ты хорошо начинал(а) 💪 Не дай пятидневной паузе превратиться в привычку — время вернуться!',
+    'Твой беговой дневник заскучал без новых записей 📖 Есть что добавить?',
+    '5 дней тишины — это не приговор, а просто пауза 🙂 Как насчёт того, чтобы её прервать сегодня?',
+    'Напоминаем про себя, а не ругаем 😊 Просто скажи: как дела с пробежками на этой неделе?',
+    'Твои прошлые километры никуда не делись — они в рейтинге и ждут продолжения 🏆',
+    'Небольшая пробежка — большой шаг обратно в ритм 🏃‍♀️ Заглянешь сегодня?',
+  ];
+
+  const messagesNew = [
+    'Привет! 👋 Ты уже с нами в челлендже, но пока ни одной пробежки не записано. Погнали?',
+    'Твой профиль готов, осталась только первая пробежка 🏃 Даже 1 км уже в счёт!',
+    'Ты зарегистрирован(а) в «30 днях в движении», но старт ещё впереди 😊 Начнём сегодня?',
+    'Не бывает «слишком поздно начать» — первая запись где угодно в челлендже засчитывается 💜',
+    'Загляни в бот и попробуй — займёт всего 30 секунд после пробежки ⏱️',
+    'Первый шаг — самый сложный 🙂 Дальше будет только легче и веселее с рейтингом.',
+    'Кажется, самое время дать боту работу 😄 Отправь свою первую дистанцию!',
+    'Ты в команде, но пока без единого километра на счету 🤔 Исправим сегодня?',
+    'Челлендж уже идёт, а твоя строчка в рейтинге пока пустая — самое время это изменить 🏆',
+    'Иногда самое сложное — начать 💪 Отправь первую пробежку, и дальше будет только по накатанной.',
+  ];
+
+  let sent = 0;
+  for (const row of rows) {
+    const pool = row.last_date === null ? messagesNew : messagesReturning;
+    const text = pool[Math.floor(Math.random() * pool.length)];
+    try {
+      await sendMessage(env, row.tg_id, text, MAIN_MENU_KEYBOARD);
+      sent++;
+    } catch (e) {
+      console.error('Reminder failed for', row.tg_id, e.message);
+    }
+  }
+  return sent;
 }
 
 // ---------------- Stats for dashboard ----------------
