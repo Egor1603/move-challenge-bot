@@ -2,10 +2,15 @@
 // 30 дней в движении — Telegram-бот на Cloudflare Workers + D1
 // ============================================================
 
+const CANCEL_TEXT = '❌ Отменить';
 const YES_NO_KEYBOARD = {
-  keyboard: [[{ text: 'Да' }, { text: 'Нет' }]],
+  keyboard: [[{ text: 'Да' }, { text: 'Нет' }], [{ text: CANCEL_TEXT }]],
   resize_keyboard: true,
   one_time_keyboard: true,
+};
+const CANCEL_KEYBOARD = {
+  keyboard: [[{ text: CANCEL_TEXT }]],
+  resize_keyboard: true,
 };
 const MAIN_MENU_KEYBOARD = {
   keyboard: [[{ text: '🏃 Новая пробежка' }, { text: '📊 Мой рейтинг' }]],
@@ -177,9 +182,9 @@ async function weekHasCommunityBonus(env, userId, dateStr) {
   const { start, end } = weekRange(dateStr);
   const row = await env.DB.prepare(
     `SELECT COUNT(*) as cnt FROM entries
-     WHERE user_id=? AND community=1 AND entry_date>=? AND entry_date<=? AND entry_date != ?`
+     WHERE user_id=? AND community=1 AND entry_date>=? AND entry_date<=?`
   )
-    .bind(userId, start, end, dateStr)
+    .bind(userId, start, end)
     .first();
   return row.cnt > 0;
 }
@@ -189,7 +194,7 @@ async function weekHasCommunityBonus(env, userId, dateStr) {
 async function askNameOrContinue(env, chatId, from, user, nextAfter) {
   if (!user.full_name) {
     await setSession(env, from.id, 'ASK_NAME', { next: nextAfter });
-    await sendMessage(env, chatId, 'Как тебя зовут? Напиши имя и фамилию — так ты будешь отображаться в общем рейтинге.');
+    await sendMessage(env, chatId, 'Как тебя зовут? Напиши имя и фамилию — так ты будешь отображаться в общем рейтинге.', CANCEL_KEYBOARD);
     return;
   }
   await askCityOrContinue(env, chatId, from, user, nextAfter);
@@ -198,7 +203,7 @@ async function askNameOrContinue(env, chatId, from, user, nextAfter) {
 async function askCityOrContinue(env, chatId, from, user, nextAfter) {
   if (!user.city) {
     await setSession(env, from.id, 'ASK_CITY', { next: nextAfter });
-    await sendMessage(env, chatId, 'Укажи свой город (напиши текстом):');
+    await sendMessage(env, chatId, 'Укажи свой город (напиши текстом):', CANCEL_KEYBOARD);
     return;
   }
   await proceedNext(env, chatId, from, nextAfter);
@@ -227,13 +232,13 @@ async function startRunFlow(env, chatId, from, user) {
 
     await setSession(env, from.id, 'ASK_DATE', { todayStr, yesterdayStr, todayLabel, yesterdayLabel });
     await sendMessage(env, chatId, '📅 За какой день пробежка?', {
-      keyboard: [[{ text: todayLabel }, { text: yesterdayLabel }]],
+      keyboard: [[{ text: todayLabel }, { text: yesterdayLabel }], [{ text: CANCEL_TEXT }]],
       resize_keyboard: true,
       one_time_keyboard: true,
     });
   } else {
     await setSession(env, from.id, 'ASK_KM', { entry_date: todayStr });
-    await sendMessage(env, chatId, '🏃 Сколько километров пробежал(а) сегодня? Напиши число (можно с дробной частью, например 5.4).');
+    await sendMessage(env, chatId, '🏃 Сколько километров пробежал(а) сегодня? Напиши число (можно с дробной частью, например 5.4).', CANCEL_KEYBOARD);
   }
 }
 
@@ -275,6 +280,12 @@ async function handleWebhook(request, env) {
     return new Response('OK');
   }
 
+  if (text === '/cancel' || text === CANCEL_TEXT) {
+    await clearSession(env, from.id);
+    await sendMessage(env, chatId, 'Хорошо, отменил 👌 Чтобы начать заново — нажми «🏃 Новая пробежка».', MAIN_MENU_KEYBOARD);
+    return new Response('OK');
+  }
+
   if (!session) {
     await sendMessage(env, chatId, 'Чтобы внести пробежку за сегодня, отправь /run', MAIN_MENU_KEYBOARD);
     return new Response('OK');
@@ -305,7 +316,7 @@ async function handleWebhook(request, env) {
 
   if (state === 'ASK_DATE') {
     const dateKeyboard = {
-      keyboard: [[{ text: data.todayLabel }, { text: data.yesterdayLabel }]],
+      keyboard: [[{ text: data.todayLabel }, { text: data.yesterdayLabel }], [{ text: CANCEL_TEXT }]],
       resize_keyboard: true,
       one_time_keyboard: true,
     };
@@ -319,14 +330,14 @@ async function handleWebhook(request, env) {
     }
 
     await setSession(env, from.id, 'ASK_KM', { entry_date: chosenDate });
-    await sendMessage(env, chatId, '🏃 Сколько километров пробежал(а)? Напиши число (можно с дробной частью, например 5.4).');
+    await sendMessage(env, chatId, '🏃 Сколько километров пробежал(а)? Напиши число (можно с дробной частью, например 5.4).', CANCEL_KEYBOARD);
     return new Response('OK');
   }
 
   if (state === 'ASK_KM') {
     const km = parseFloat(text.replace(',', '.').replace(/[^0-9.]/g, ''));
     if (isNaN(km) || km < 0 || km > 200) {
-      await sendMessage(env, chatId, 'Не похоже на дистанцию 🤔 Напиши, например: 5.4');
+      await sendMessage(env, chatId, 'Не похоже на дистанцию 🤔 Напиши, например: 5.4', CANCEL_KEYBOARD);
       return new Response('OK');
     }
     if (km === 0) {
@@ -338,7 +349,7 @@ async function handleWebhook(request, env) {
         'Хм, 0 км мы не считаем — возможно, забыл(а) вписать реальное число? Если пробежки правда не было, ничего страшного, попробуй завтра 🙂',
       ];
       const joke = jokes[Math.floor(Math.random() * jokes.length)];
-      await sendMessage(env, chatId, joke);
+      await sendMessage(env, chatId, joke, CANCEL_KEYBOARD);
       return new Response('OK');
     }
     data.km = Math.round(km * 100) / 100;
@@ -365,14 +376,14 @@ async function handleWebhook(request, env) {
     }
     data.community = text === 'Да' ? 1 : 0;
     await setSession(env, from.id, 'ASK_PHOTO', data);
-    await sendMessage(env, chatId, '📸 Пришли скриншот трекера бега за сегодня (фото).');
+    await sendMessage(env, chatId, '📸 Пришли скриншот трекера бега за сегодня (фото).', CANCEL_KEYBOARD);
     return new Response('OK');
   }
 
   if (state === 'ASK_PHOTO') {
     const photo = msg.photo && msg.photo[msg.photo.length - 1];
     if (!photo) {
-      await sendMessage(env, chatId, 'Нужно именно фото 🙂 Пришли скриншот трекера.');
+      await sendMessage(env, chatId, 'Нужно именно фото 🙂 Пришли скриншот трекера.', CANCEL_KEYBOARD);
       return new Response('OK');
     }
     await saveEntry(env, user, data, photo.file_id, from, chatId);
@@ -386,15 +397,17 @@ async function handleWebhook(request, env) {
 async function saveEntry(env, user, data, fileId, from, chatId) {
   const date = data.entry_date || dateStrFromLocal(localNow(cityUtcOffset(user.city)));
 
-  const existing = await env.DB.prepare('SELECT steps as km, points FROM entries WHERE user_id=? AND entry_date=?')
+  const countRow = await env.DB.prepare(
+    'SELECT COUNT(*) as cnt FROM entries WHERE user_id=? AND entry_date=?'
+  )
     .bind(user.id, date)
     .first();
 
-  if (existing) {
+  if (countRow.cnt >= 2) {
     await sendMessage(
       env,
       chatId,
-      `⚠️ За ${formatRuDate(date)} у тебя уже есть запись: ${existing.km} км, ${existing.points} баллов.\n\nПовторно добавить пробежку за этот же день нельзя. Если это ошибка и запись нужно исправить — напиши администратору челленджа.`,
+      `⚠️ За ${formatRuDate(date)} у тебя уже внесено максимум пробежек на этот день. Добавить ещё одну нельзя. Если это ошибка — напиши администратору челленджа.`,
       MAIN_MENU_KEYBOARD
     );
     return;
@@ -413,11 +426,7 @@ async function saveEntry(env, user, data, fileId, from, chatId) {
 
   await env.DB.prepare(
     `INSERT INTO entries (user_id, entry_date, steps, together, community, photo_file_id, photo_url, points, status)
-     VALUES (?,?,?,?,?,?,?,?,'pending')
-     ON CONFLICT(user_id, entry_date) DO UPDATE SET
-       steps=excluded.steps, together=excluded.together,
-       community=excluded.community, photo_file_id=excluded.photo_file_id, photo_url=excluded.photo_url,
-       points=excluded.points, status='pending', updated_at=datetime('now')`
+     VALUES (?,?,?,?,?,?,?,?,'pending')`
   )
     .bind(user.id, date, data.km, data.together, data.community, fileId, photoUrl, points)
     .run();
@@ -427,7 +436,7 @@ async function saveEntry(env, user, data, fileId, from, chatId) {
   if (data.community === 1) {
     breakdown += communityBonusAllowed
       ? `\n🏃 Тренировка комьюнити: +2000 баллов`
-      : `\n🏃 Тренировка комьюнити: бонус на этой неделе уже использован`;
+      : `\n🏃 Тренировка комьюнити: бонус начисляется не более раза в неделю — в этот раз не засчитан`;
   }
   breakdown += `\n\n💰 Итого: ${points} баллов\n\nЗаявка отправлена на проверку модератору.`;
 
@@ -608,7 +617,7 @@ async function handleStats(env) {
   ).all();
 
   const top = await env.DB.prepare(
-    `SELECT u.full_name, u.username, u.city, SUM(e.points) as points, COUNT(*) as days
+    `SELECT u.full_name, u.username, u.city, SUM(e.points) as points, COUNT(DISTINCT e.entry_date) as days
      FROM entries e JOIN users u ON u.id=e.user_id
      WHERE e.status != 'rejected'
      GROUP BY e.user_id ORDER BY points DESC LIMIT 10`
@@ -622,7 +631,7 @@ async function handleStats(env) {
   ).all();
 
   const allParticipants = await env.DB.prepare(
-    `SELECT u.full_name, u.username, u.city, SUM(e.points) as points, SUM(e.steps) as km, COUNT(*) as days
+    `SELECT u.full_name, u.username, u.city, SUM(e.points) as points, SUM(e.steps) as km, COUNT(DISTINCT e.entry_date) as days
      FROM entries e JOIN users u ON u.id=e.user_id
      WHERE e.status != 'rejected'
      GROUP BY e.user_id ORDER BY points DESC`
