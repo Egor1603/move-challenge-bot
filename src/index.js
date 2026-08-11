@@ -81,11 +81,53 @@ async function setupWebhook(request, env) {
 
 // ---------------- Date helpers ----------------
 
-function todayDateStr() {
-  // Екатеринбург = UTC+5
-  const now = new Date();
-  const yekt = new Date(now.getTime() + 5 * 60 * 60 * 1000);
-  return yekt.toISOString().slice(0, 10);
+// Смещение от UTC (в часах) по городу. Список неполный — покрывает основные
+// города РФ, для незнакомых городов используется Екатеринбург (UTC+5) по умолчанию.
+const CITY_UTC_OFFSET = {
+  'калининград': 2,
+  'москва': 3, 'санкт-петербург': 3, 'спб': 3, 'питер': 3, 'петербург': 3,
+  'казань': 3, 'нижний новгород': 3, 'ростов-на-дону': 3, 'ростов': 3,
+  'краснодар': 3, 'сочи': 3, 'воронеж': 3, 'волгоград': 3, 'ярославль': 3,
+  'тула': 3, 'рязань': 3, 'тверь': 3, 'белгород': 3, 'курск': 3, 'липецк': 3,
+  'тамбов': 3, 'смоленск': 3, 'брянск': 3, 'иваново': 3, 'владимир': 3,
+  'калуга': 3, 'орёл': 3, 'орел': 3, 'пенза': 3, 'саранск': 3, 'чебоксары': 3,
+  'киров': 3, 'вологда': 3, 'мурманск': 3, 'архангельск': 3, 'петрозаводск': 3,
+  'симферополь': 3, 'севастополь': 3,
+  'самара': 4, 'тольятти': 4, 'ижевск': 4, 'ульяновск': 4, 'астрахань': 4,
+  'екатеринбург': 5, 'челябинск': 5, 'пермь': 5, 'уфа': 5, 'тюмень': 5,
+  'курган': 5, 'оренбург': 5, 'магнитогорск': 5, 'нижний тагил': 5,
+  'омск': 6,
+  'новосибирск': 7, 'красноярск': 7, 'барнаул': 7, 'кемерово': 7, 'томск': 7,
+  'новокузнецк': 7, 'абакан': 7, 'горно-алтайск': 7,
+  'иркутск': 8, 'улан-удэ': 8, 'братск': 8, 'чита': 8,
+  'якутск': 9, 'благовещенск': 9,
+  'владивосток': 10, 'хабаровск': 10, 'южно-сахалинск': 10,
+  'магадан': 11,
+  'петропавловск-камчатский': 12,
+};
+
+function normalizeCity(city) {
+  return (city || '').toLowerCase().trim().replace(/ё/g, 'е');
+}
+
+function cityUtcOffset(city) {
+  const key = normalizeCity(city);
+  return CITY_UTC_OFFSET[key] ?? 5; // по умолчанию — Екатеринбург
+}
+
+function localNow(offsetHours) {
+  return new Date(Date.now() + offsetHours * 60 * 60 * 1000);
+}
+
+function dateStrFromLocal(localDate) {
+  return localDate.toISOString().slice(0, 10);
+}
+
+const RU_MONTHS_SHORT = ['янв', 'фев', 'мар', 'апр', 'мая', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
+
+function formatRuDate(dateStr) {
+  const [, m, d] = dateStr.split('-').map(Number);
+  return `${d} ${RU_MONTHS_SHORT[m - 1]}`;
 }
 
 function weekRange(dateStr) {
@@ -164,11 +206,34 @@ async function askCityOrContinue(env, chatId, from, user, nextAfter) {
 
 async function proceedNext(env, chatId, from, nextAfter) {
   if (nextAfter === 'run') {
-    await setSession(env, from.id, 'ASK_KM', {});
-    await sendMessage(env, chatId, '🏃 Сколько километров пробежал(а) сегодня? Напиши число (можно с дробной частью, например 5.4).');
+    const user = await env.DB.prepare('SELECT * FROM users WHERE tg_id=?').bind(from.id).first();
+    await startRunFlow(env, chatId, from, user);
   } else {
     await clearSession(env, from.id);
     await sendMessage(env, chatId, 'Готово! Выбери действие 👇', MAIN_MENU_KEYBOARD);
+  }
+}
+
+async function startRunFlow(env, chatId, from, user) {
+  const offset = cityUtcOffset(user.city);
+  const local = localNow(offset);
+  const todayStr = dateStrFromLocal(local);
+
+  if (local.getUTCHours() < 12) {
+    const yesterday = new Date(local.getTime() - 24 * 60 * 60 * 1000);
+    const yesterdayStr = dateStrFromLocal(yesterday);
+    const todayLabel = `Сегодня, ${formatRuDate(todayStr)}`;
+    const yesterdayLabel = `Вчера, ${formatRuDate(yesterdayStr)}`;
+
+    await setSession(env, from.id, 'ASK_DATE', { todayStr, yesterdayStr, todayLabel, yesterdayLabel });
+    await sendMessage(env, chatId, '📅 За какой день пробежка?', {
+      keyboard: [[{ text: todayLabel }, { text: yesterdayLabel }]],
+      resize_keyboard: true,
+      one_time_keyboard: true,
+    });
+  } else {
+    await setSession(env, from.id, 'ASK_KM', { entry_date: todayStr });
+    await sendMessage(env, chatId, '🏃 Сколько километров пробежал(а) сегодня? Напиши число (можно с дробной частью, например 5.4).');
   }
 }
 
@@ -200,8 +265,7 @@ async function handleWebhook(request, env) {
     if (!user.full_name || !user.city) {
       await askNameOrContinue(env, chatId, from, user, 'run');
     } else {
-      await setSession(env, from.id, 'ASK_KM', {});
-      await sendMessage(env, chatId, '🏃 Сколько километров пробежал(а) сегодня? Напиши число (можно с дробной частью, например 5.4).');
+      await startRunFlow(env, chatId, from, user);
     }
     return new Response('OK');
   }
@@ -236,6 +300,26 @@ async function handleWebhook(request, env) {
     }
     await env.DB.prepare('UPDATE users SET city=? WHERE tg_id=?').bind(text, from.id).run();
     await proceedNext(env, chatId, from, data.next);
+    return new Response('OK');
+  }
+
+  if (state === 'ASK_DATE') {
+    const dateKeyboard = {
+      keyboard: [[{ text: data.todayLabel }, { text: data.yesterdayLabel }]],
+      resize_keyboard: true,
+      one_time_keyboard: true,
+    };
+    let chosenDate = null;
+    if (text === data.todayLabel) chosenDate = data.todayStr;
+    else if (text === data.yesterdayLabel) chosenDate = data.yesterdayStr;
+
+    if (!chosenDate) {
+      await sendMessage(env, chatId, 'Выбери один из вариантов на клавиатуре 👇', dateKeyboard);
+      return new Response('OK');
+    }
+
+    await setSession(env, from.id, 'ASK_KM', { entry_date: chosenDate });
+    await sendMessage(env, chatId, '🏃 Сколько километров пробежал(а)? Напиши число (можно с дробной частью, например 5.4).');
     return new Response('OK');
   }
 
@@ -300,7 +384,22 @@ async function handleWebhook(request, env) {
 }
 
 async function saveEntry(env, user, data, fileId, from, chatId) {
-  const date = todayDateStr();
+  const date = data.entry_date || dateStrFromLocal(localNow(cityUtcOffset(user.city)));
+
+  const existing = await env.DB.prepare('SELECT steps as km, points FROM entries WHERE user_id=? AND entry_date=?')
+    .bind(user.id, date)
+    .first();
+
+  if (existing) {
+    await sendMessage(
+      env,
+      chatId,
+      `⚠️ За ${formatRuDate(date)} у тебя уже есть запись: ${existing.km} км, ${existing.points} баллов.\n\nПовторно добавить пробежку за этот же день нельзя. Если это ошибка и запись нужно исправить — напиши администратору челленджа.`,
+      MAIN_MENU_KEYBOARD
+    );
+    return;
+  }
+
   const photoUrl = await getPhotoUrl(env, fileId);
 
   let communityBonusAllowed = true;
@@ -323,7 +422,7 @@ async function saveEntry(env, user, data, fileId, from, chatId) {
     .bind(user.id, date, data.km, data.together, data.community, fileId, photoUrl, points)
     .run();
 
-  let breakdown = `✅ Записано за ${date}:\n\n🏃 Дистанция: ${data.km} км = ${Math.round(data.km * 100)} баллов`;
+  let breakdown = `✅ Записано за ${formatRuDate(date)}:\n\n🏃 Дистанция: ${data.km} км = ${Math.round(data.km * 100)} баллов`;
   if (data.together === 1) breakdown += `\n🤝 Совместный бег с коллегой отмечен`;
   if (data.community === 1) {
     breakdown += communityBonusAllowed
