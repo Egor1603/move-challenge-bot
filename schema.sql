@@ -20,8 +20,9 @@ CREATE TABLE IF NOT EXISTS entries (
   points INTEGER DEFAULT 0,
   status TEXT DEFAULT 'pending', -- pending / approved / rejected
   created_at TEXT DEFAULT (datetime('now')),
-  updated_at TEXT DEFAULT (datetime('now')),
-  UNIQUE(user_id, entry_date)
+  updated_at TEXT DEFAULT (datetime('now'))
+  -- Раньше тут был UNIQUE(user_id, entry_date) — теперь до 2 записей
+  -- в день разрешено на уровне кода бота (см. saveEntry в src/index.js)
 );
 
 CREATE TABLE IF NOT EXISTS sessions (
