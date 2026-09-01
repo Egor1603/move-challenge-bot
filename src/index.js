@@ -441,7 +441,7 @@ async function saveEntry(env, user, data, fileId, from, chatId) {
   breakdown += `\n\n💰 Итого: ${points} баллов\n\nЗаявка отправлена на проверку модератору.`;
 
   await sendMessage(env, chatId, breakdown);
-  await sendLeaderboards(env, chatId);
+  await sendLeaderboards(env, chatId, date);
 
   if (env.SHEETS_WEBHOOK_URL) {
     try {
@@ -471,24 +471,27 @@ async function saveEntry(env, user, data, fileId, from, chatId) {
   }
 }
 
-async function sendLeaderboards(env, chatId) {
+async function sendLeaderboards(env, chatId, dateStr) {
+  const month = dateStr.slice(0, 7); // 'YYYY-MM'
+
   const topPoints = await env.DB.prepare(
     `SELECT u.full_name, u.username, SUM(e.points) as points
      FROM entries e JOIN users u ON u.id=e.user_id
-     WHERE e.status != 'rejected'
+     WHERE e.status != 'rejected' AND substr(e.entry_date,1,7) = ?
      GROUP BY e.user_id ORDER BY points DESC LIMIT 10`
-  ).all();
+  ).bind(month).all();
 
   const topKm = await env.DB.prepare(
     `SELECT u.full_name, u.username, SUM(e.steps) as km
      FROM entries e JOIN users u ON u.id=e.user_id
-     WHERE e.status != 'rejected'
+     WHERE e.status != 'rejected' AND substr(e.entry_date,1,7) = ?
      GROUP BY e.user_id ORDER BY km DESC LIMIT 10`
-  ).all();
+  ).bind(month).all();
 
   const nameOf = (row) => row.full_name || row.username || 'Участник';
+  const monthText = monthLabel(month).toLowerCase();
 
-  let text = '🏆 <b>Топ-10 по баллам</b>\n';
+  let text = `🏆 <b>Топ-10 по баллам за ${monthText}</b>\n`;
   if (topPoints.results.length === 0) {
     text += 'Пока пусто\n';
   } else {
@@ -497,7 +500,7 @@ async function sendLeaderboards(env, chatId) {
     });
   }
 
-  text += '\n🏃 <b>Топ-10 по километрам</b>\n';
+  text += `\n🏃 <b>Топ-10 по километрам за ${monthText}</b>\n`;
   if (topKm.results.length === 0) {
     text += 'Пока пусто\n';
   } else {
