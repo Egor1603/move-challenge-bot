@@ -78,6 +78,15 @@
   .tile-label{ font-size: 12px; font-weight:700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-dim); margin-bottom: 8px; }
   .tile-value{ font-weight:800; font-size: 32px; line-height:1; color: var(--ink); }
 
+  .month-tabs{ display:flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+  .month-tab{
+    font-family: var(--body); font-size: 13px; font-weight: 700;
+    color: var(--violet-deep); background: var(--card);
+    border: 1px solid var(--line); border-radius: 999px;
+    padding: 8px 18px; cursor: pointer;
+  }
+  .month-tab.active{ background: var(--violet); color: #fff; border-color: var(--violet); }
+
   .boards{ display:grid; grid-template-columns: 1fr 1fr; gap: 16px; }
   @media (max-width: 780px){ .boards{ grid-template-columns: 1fr; } }
   .board{
@@ -137,10 +146,12 @@
     </div>
   </div>
 
+  <div class="month-tabs" id="monthTabs"></div>
+
   <div class="boards">
     <div class="board">
       <div class="board-title">🏆 Топ по баллам</div>
-      <div class="board-sub">Учитывает километры и бонусы комьюнити</div>
+      <div class="board-sub" id="pointsBoardSub">Учитывает километры и бонусы комьюнити</div>
       <table>
         <thead><tr><th>#</th><th>Участник</th><th style="text-align:right">Баллы</th></tr></thead>
         <tbody id="leaderboardPoints"></tbody>
@@ -148,7 +159,7 @@
     </div>
     <div class="board">
       <div class="board-title">🏃 Топ по километрам</div>
-      <div class="board-sub">Чистая пробежанная дистанция</div>
+      <div class="board-sub" id="kmBoardSub">Чистая пробежанная дистанция</div>
       <table>
         <thead><tr><th>#</th><th>Участник</th><th style="text-align:right">Км</th></tr></thead>
         <tbody id="leaderboardKm"></tbody>
@@ -158,7 +169,7 @@
 
   <div class="full-board">
     <div class="board-title">📋 Все участники</div>
-    <div class="board-sub">Полный рейтинг по баллам</div>
+    <div class="board-sub">Полный рейтинг по баллам за всё время</div>
     <table>
       <thead><tr><th>#</th><th>Участник</th><th>Город</th><th>Км</th><th style="text-align:right">Баллы</th></tr></thead>
       <tbody id="leaderboardAll"></tbody>
@@ -173,18 +184,23 @@
   // ==== Настройки ====
   const STATS_URL = "https://move-challenge-bot.egorv28.workers.dev/stats";
 
-  async function loadStats() {
+  let selectedMonth = null;
+
+  async function loadStats(month) {
     let data;
     try {
-      const res = await fetch(STATS_URL);
+      const url = month ? `${STATS_URL}?month=${encodeURIComponent(month)}` : STATS_URL;
+      const res = await fetch(url);
       data = await res.json();
     } catch (e) {
       data = {
         total_points: 0, total_km: 0,
         participants: 0, cities_count: 0,
-        leaderboard: [], leaderboard_km: [], leaderboard_all: [], updated_at: null
+        leaderboard: [], leaderboard_km: [], leaderboard_all: [],
+        available_months: [], selected_month: null, updated_at: null
       };
     }
+    selectedMonth = data.selected_month;
     render(data);
   }
 
@@ -193,6 +209,16 @@
     document.getElementById('totalCities').innerHTML = data.cities_count;
     document.getElementById('totalParticipants').innerHTML = data.participants;
 
+    renderMonthTabs(data.available_months || [], data.selected_month);
+
+    const monthLabel = (data.available_months || []).find(m => m.value === data.selected_month)?.label || '';
+    document.getElementById('pointsBoardSub').textContent = monthLabel
+      ? `За ${monthLabel.toLowerCase()} — километры и бонусы комьюнити`
+      : 'Учитывает километры и бонусы комьюнити';
+    document.getElementById('kmBoardSub').textContent = monthLabel
+      ? `Чистая дистанция за ${monthLabel.toLowerCase()}`
+      : 'Чистая пробежанная дистанция';
+
     fillTable('leaderboardPoints', data.leaderboard, 'points');
     fillTable('leaderboardKm', data.leaderboard_km, 'km');
     fillFullTable('leaderboardAll', data.leaderboard_all);
@@ -200,6 +226,18 @@
     document.getElementById('updated').textContent = data.updated_at
       ? 'Обновлено: ' + new Date(data.updated_at).toLocaleString('ru-RU')
       : 'Ожидание подключения бота…';
+  }
+
+  function renderMonthTabs(months, selected) {
+    const container = document.getElementById('monthTabs');
+    container.innerHTML = '';
+    months.forEach(m => {
+      const btn = document.createElement('button');
+      btn.className = 'month-tab' + (m.value === selected ? ' active' : '');
+      btn.textContent = m.label;
+      btn.onclick = () => loadStats(m.value);
+      container.appendChild(btn);
+    });
   }
 
   function fillTable(elId, rows, field) {
@@ -233,7 +271,7 @@
   }
 
   loadStats();
-  setInterval(loadStats, 60000);
+  setInterval(() => loadStats(selectedMonth), 60000);
 </script>
 </body>
 </html>
