@@ -32,7 +32,7 @@ export default {
     }
 
     if (request.method === 'GET' && url.pathname === '/stats') {
-      return handleStats(env);
+      return handleStats(env, url);
     }
 
     if (request.method === 'GET' && url.pathname === '/setup-webhook') {
@@ -604,7 +604,18 @@ async function sendReminders(env) {
 
 // ---------------- Stats for dashboard ----------------
 
-async function handleStats(env) {
+const RU_MONTHS_FULL = [
+  'Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь',
+  'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь',
+];
+
+function monthLabel(monthStr) {
+  const m = parseInt(monthStr.split('-')[1], 10);
+  return RU_MONTHS_FULL[m - 1] || monthStr;
+}
+
+async function handleStats(env, url) {
+  // ---- Накопительные показатели за всё время (не зависят от месяца) ----
   const totals = await env.DB.prepare(
     `SELECT COALESCE(SUM(points),0) as total_points, COALESCE(SUM(steps),0) as total_km,
      COUNT(DISTINCT user_id) as participants
@@ -616,26 +627,44 @@ async function handleStats(env) {
      WHERE e.status != 'rejected' AND u.city IS NOT NULL AND u.city != ''`
   ).all();
 
-  const top = await env.DB.prepare(
-    `SELECT u.full_name, u.username, u.city, SUM(e.points) as points, COUNT(DISTINCT e.entry_date) as days
-     FROM entries e JOIN users u ON u.id=e.user_id
-     WHERE e.status != 'rejected'
-     GROUP BY e.user_id ORDER BY points DESC LIMIT 10`
-  ).all();
-
-  const topKm = await env.DB.prepare(
-    `SELECT u.full_name, u.username, u.city, SUM(e.steps) as km
-     FROM entries e JOIN users u ON u.id=e.user_id
-     WHERE e.status != 'rejected'
-     GROUP BY e.user_id ORDER BY km DESC LIMIT 10`
-  ).all();
-
   const allParticipants = await env.DB.prepare(
     `SELECT u.full_name, u.username, u.city, SUM(e.points) as points, SUM(e.steps) as km, COUNT(DISTINCT e.entry_date) as days
      FROM entries e JOIN users u ON u.id=e.user_id
      WHERE e.status != 'rejected'
      GROUP BY e.user_id ORDER BY points DESC`
   ).all();
+
+  // ---- Список доступных месяцев (для вкладок на дашборде) ----
+  const monthsRows = await env.DB.prepare(
+    `SELECT DISTINCT substr(entry_date,1,7) as month FROM entries
+     WHERE status != 'rejected' ORDER BY month`
+  ).all();
+  const availableMonths = monthsRows.results.map((r) => r.month);
+
+  // ---- Выбранный месяц: из query-параметра, либо последний доступный ----
+  let month = url.searchParams.get('month');
+  if (!month || !availableMonths.includes(month)) {
+    month = availableMonths.length ? availableMonths[availableMonths.length - 1] : null;
+  }
+
+  // ---- Рейтинги ЗА ВЫБРАННЫЙ МЕСЯЦ (не накопительные) ----
+  let top = { results: [] };
+  let topKm = { results: [] };
+  if (month) {
+    top = await env.DB.prepare(
+      `SELECT u.full_name, u.username, u.city, SUM(e.points) as points, COUNT(DISTINCT e.entry_date) as days
+       FROM entries e JOIN users u ON u.id=e.user_id
+       WHERE e.status != 'rejected' AND substr(e.entry_date,1,7) = ?
+       GROUP BY e.user_id ORDER BY points DESC LIMIT 10`
+    ).bind(month).all();
+
+    topKm = await env.DB.prepare(
+      `SELECT u.full_name, u.username, u.city, SUM(e.steps) as km
+       FROM entries e JOIN users u ON u.id=e.user_id
+       WHERE e.status != 'rejected' AND substr(e.entry_date,1,7) = ?
+       GROUP BY e.user_id ORDER BY km DESC LIMIT 10`
+    ).bind(month).all();
+  }
 
   const body = {
     total_points: totals.total_points,
@@ -646,6 +675,8 @@ async function handleStats(env) {
     leaderboard: top.results,
     leaderboard_km: topKm.results,
     leaderboard_all: allParticipants.results,
+    available_months: availableMonths.map((m) => ({ value: m, label: monthLabel(m) })),
+    selected_month: month,
     updated_at: new Date().toISOString(),
   };
 
